@@ -15,8 +15,8 @@ CODENAME="bookworm"
 cd "$(dirname "$0")"
 
 # 1. Build the kasmweb (noVNC) bundle into builder/www/
-sudo docker build -t kasmweb/www -f builder/dockerfile.www.build .
-sudo docker run --rm -v "$PWD/builder/www:/build" kasmweb/www:latest
+docker build -t kasmweb/www -f builder/dockerfile.www.build .
+docker run --rm -v "$PWD/builder/www:/build" kasmweb/www:latest
 
 # 2. Package the source tarball
 ./builder/build-package debian "$CODENAME"
