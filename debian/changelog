@@ -1,3 +1,12 @@
+kasmvnc (1.4.1~gh.20260430-1) unstable; urgency=medium
+
+  * Golden Helix integration build on top of upstream KasmVNC master (post-1.4.0).
+  * Includes hardware-accelerated h.264/h.265/AV1 video encoding via VAAPI.
+  * Tracks goldenhelix/noVNC goldenhelix-master-20260430 (VarSeq branding,
+    iframe postMessage UI hooks, relative WebSocket URLs, clipboard polish).
+
+ -- Golden Helix <support@goldenhelix.com>  Thu, 30 Apr 2026 00:00:00 +0000
+
 kasmvnc (1.3.4-1) unstable; urgency=medium
 
   * Add configuration key network.udp.payload_size.
