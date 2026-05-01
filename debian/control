@@ -15,6 +15,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}, ssl-cert, xauth,
   x11-xkb-utils, xkb-data, procps, libswitch-perl, libyaml-tiny-perl,
   libhash-merge-simple-perl, libscalar-list-utils-perl, liblist-moreutils-perl,
   libtry-tiny-perl, libdatetime-perl, libdatetime-timezone-perl, libgbm1,
+  python3, desktop-file-utils,
 Recommends: intel-media-va-driver-non-free [amd64]
 Suggests: systemd
 Provides: vnc-server
