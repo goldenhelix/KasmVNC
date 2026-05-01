@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Type=X-XFCE-Helper
+NoDisplay=true
+Name=KasmVNC Open URL
+Comment=Forwards http(s) URLs to the KasmVNC web client
+Icon=web-browser
+X-XFCE-Category=WebBrowser
+X-XFCE-CommandsWithParameter=/usr/bin/kasmvnc-open-url "%s"
+X-XFCE-Binaries=kasmvnc-open-url

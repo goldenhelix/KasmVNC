@@ -9,3 +9,5 @@ install(PROGRAMS vncserver DESTINATION ${BIN_DIR})
 install(FILES vncserver.man DESTINATION ${MAN_DIR}/man1 RENAME vncserver.1)
 install(PROGRAMS openurl/kasmvnc-open-url DESTINATION ${BIN_DIR})
 install(FILES openurl/kasmvnc-open-url.desktop DESTINATION ${DATA_DIR}/applications)
+install(FILES openurl/kasmvnc-open-url.helper DESTINATION ${DATA_DIR}/xfce4/helpers
+        RENAME kasmvnc-open-url.desktop)
