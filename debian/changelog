@@ -1,3 +1,20 @@
+kasmvnc (1.5.1~gh.20260828-1) unstable; urgency=medium
+
+  * Golden Helix integration build rebased onto upstream KasmVNC master
+    (post-1.5.1, 327 commits past the 20260430 base).
+  * Picks up upstream 1.5.0/1.5.1: hardware + software H.264/H.265/AV1 video
+    streaming modes, relative mouse input, frame rates to 120 fps, enhanced
+    connection/performance statistics, in-place client reconnect with bounded
+    retries, FFmpeg 8 compatibility, and the VNC-494/498/499/500 input
+    hardening series.
+  * Re-applies the Golden Helix patch set: openurl / download / upload / host
+    UnixRelay channels, MAX_UNIX_RELAYS raised to 8, and the video-mode
+    pseudo-encoding flush in EncodeManager.
+  * Tracks goldenhelix/noVNC goldenhelix-master-20260828 (VarSeq branding,
+    iframe postMessage UI hooks, relative WebSocket URLs, clipboard polish).
+
+ -- Golden Helix <support@goldenhelix.com>  Fri, 28 Aug 2026 00:00:00 +0000
+
 kasmvnc (1.5.1-1) unstable; urgency=medium
 
   * Fixed Kasm Workspaces sessions failing to recover from unexpected connection drops. The web client now reconnects in place with bounded retries while preserving idle-timeout tracking.
