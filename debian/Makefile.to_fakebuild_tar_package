@@ -13,6 +13,7 @@ install: unpack_tarball
 	mkdir -p $(DESTDIR)/usr/bin $(DESTDIR)/usr/share/man/man1 \
 	  $(DESTDIR)/usr/share/doc/kasmvncserver $(DESTDIR)/usr/lib \
 		$(DESTDIR)/usr/share/perl5 \
+		$(DESTDIR)/usr/share/applications \
 		$(DESTDIR)/etc/kasmvnc
 	cp $(SRC_BIN)/Xvnc $(DESTDIR)/usr/bin/Xkasmvnc
 	cp $(SRC_BIN)/vncserver $(DESTDIR)/usr/bin/kasmvncserver
@@ -20,6 +21,8 @@ install: unpack_tarball
 	cp $(SRC_BIN)/vncconfig $(DESTDIR)/usr/bin/kasmvncconfig
 	cp $(SRC_BIN)/kasmvncpasswd $(DESTDIR)/usr/bin/
 	cp $(SRC_BIN)/kasmxproxy $(DESTDIR)/usr/bin/
+	cp $(SRC_BIN)/kasmvnc-open-url $(DESTDIR)/usr/bin/
+	cp $(SRC)/share/applications/kasmvnc-open-url.desktop $(DESTDIR)/usr/share/applications/
 	cp -r $(SRC)/lib/kasmvnc/ $(DESTDIR)/usr/lib/kasmvncserver
 	cp -r $(SRC)/lib/systemd/ $(DESTDIR)/usr/lib/
 	cp -r $(SRC)/share/doc/kasmvnc*/* $(DESTDIR)/usr/share/doc/kasmvncserver/
