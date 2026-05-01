@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=KasmVNC Open URL
+Comment=Forwards http(s) URLs to the KasmVNC web client to open natively
+Exec=/usr/bin/kasmvnc-open-url %u
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+Categories=Network;

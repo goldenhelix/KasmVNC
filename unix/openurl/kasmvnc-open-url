@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+# Forwards a URL from inside an Xvnc/KasmVNC session to the websocket
+# client, which opens it in a native browser tab. Wired up as the system
+# http/https handler via xdg-mime; see ./README.md.
+
+import os
+import re
+import socket
+import sys
+
+SOCK_TEMPLATE = "/tmp/kasmvnc-openurl-{display}.sock"
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: kasmvnc-open-url <url>", file=sys.stderr)
+        return 2
+
+    url = sys.argv[1]
+    if not re.match(r"^https?://", url, re.IGNORECASE):
+        print(f"kasmvnc-open-url: refusing non-http(s) URL: {url!r}", file=sys.stderr)
+        return 3
+
+    display = os.environ.get("DISPLAY", "").lstrip(":").split(".")[0]
+    if not display:
+        print("kasmvnc-open-url: DISPLAY is not set", file=sys.stderr)
+        return 4
+
+    sock_path = SOCK_TEMPLATE.format(display=display)
+    if not os.path.exists(sock_path):
+        print(f"kasmvnc-open-url: socket {sock_path} not present; "
+              "is Xvnc running with -UnixRelay openurl:...?", file=sys.stderr)
+        return 5
+
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        s.sendto(url.encode("utf-8"), sock_path)
+    finally:
+        s.close()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
