@@ -23,6 +23,7 @@ install: unpack_tarball
 	cp $(SRC_BIN)/kasmvncpasswd $(DESTDIR)/usr/bin/
 	cp $(SRC_BIN)/kasmxproxy $(DESTDIR)/usr/bin/
 	cp $(SRC_BIN)/kasmvnc-open-url $(DESTDIR)/usr/bin/
+	cp $(SRC_BIN)/kasmvnc-xdg-open $(DESTDIR)/usr/bin/
 	cp $(SRC)/share/applications/kasmvnc-open-url.desktop $(DESTDIR)/usr/share/applications/
 	cp $(SRC)/share/xfce4/helpers/kasmvnc-open-url.desktop $(DESTDIR)/usr/share/xfce4/helpers/
 	cp -r $(SRC)/lib/kasmvnc/ $(DESTDIR)/usr/lib/kasmvncserver

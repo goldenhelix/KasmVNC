@@ -1,0 +1,16 @@
+#!/bin/bash
+# KasmVNC xdg-open shim. Installs at /usr/local/bin/xdg-open (ahead of
+# the system /usr/bin/xdg-open in default PATH). For http(s) URLs we
+# forward to /usr/bin/kasmvnc-open-url, which writes the URL to the
+# Xvnc UnixRelay so kasmweb opens the link in a native browser tab on
+# the user's machine. Anything else falls through to the real xdg-open.
+
+url="$1"
+
+case "$url" in
+    http://*|https://*|http|https)
+        exec /usr/bin/kasmvnc-open-url "$url"
+        ;;
+esac
+
+exec /usr/bin/xdg-open "$@"
