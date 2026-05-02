@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Receive uploaded files from the KasmVNC web client and write them to
+disk inside the Xvnc desktop session.
+
+Listens on /tmp/kasmvnc-upload-$DISPLAY.sock by sending a 'hello' datagram
+on startup, which causes the Xvnc server to remember our address as the
+'upload' relay peer. After that, JS-originated uploads arrive here.
+
+Wire format (big-endian):
+
+  type:u8  xid:u32  body
+    0 START : u64 size  u16+name  u16+mime(unused)  u16+dest_dir
+    1 CHUNK : u32 seq   u32 len   bytes
+    2 END   : u32 totalSeq
+    3 ERROR : u16+msg
+    4 CANCEL: (no body)
+
+Filenames collide → dedup as `name-2.ext`, `name-3.ext`, ... .
+Destination dir is expanded (~ and $VARS) and created with mkdir -p.
+"""
+
+import errno
+import logging
+import os
+import re
+import signal
+import socket
+import struct
+import sys
+import time
+
+DEFAULT_MAX_FILE = 4 * (1 << 30)   # 4 GB
+RECV_BUFLEN = 1 << 20              # 1 MB, matches Xvnc unixbuf
+DEDUP_MAX = 999
+
+TYPE_START = 0
+TYPE_CHUNK = 1
+TYPE_END = 2
+TYPE_ERROR = 3
+TYPE_CANCEL = 4
+
+log = logging.getLogger("kasmvnc-upload")
+
+_safe_name = re.compile(r"[\x00-\x1f/]")  # forbid path separators and control chars in name
+
+
+def sock_path():
+    display = os.environ.get("DISPLAY", "").lstrip(":").split(".")[0]
+    if not display:
+        raise SystemExit("kasmvnc-upload-daemon: DISPLAY not set")
+    return f"/tmp/kasmvnc-upload-{display}.sock"
+
+
+def expand_dest(dest):
+    if not dest:
+        dest = "~/Downloads"
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(dest)))
+
+
+def open_dedup(target_dir, name):
+    base, ext = os.path.splitext(name)
+    for i in range(1, DEDUP_MAX + 1):
+        candidate = name if i == 1 else f"{base}-{i}{ext}"
+        path = os.path.join(target_dir, candidate)
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+            return fd, path
+        except FileExistsError:
+            continue
+    raise OSError(f"too many dedup attempts for {name!r}")
+
+
+def read_string(buf, off):
+    if off + 2 > len(buf):
+        raise ValueError("string header overflow")
+    (n,) = struct.unpack_from(">H", buf, off)
+    off += 2
+    if off + n > len(buf):
+        raise ValueError("string body overflow")
+    s = buf[off:off + n].decode("utf-8")
+    return s, off + n
+
+
+class Transfer:
+    __slots__ = ("xid", "name", "size", "received", "fd", "path", "max_size")
+
+    def __init__(self, xid, name, size, fd, path, max_size):
+        self.xid = xid
+        self.name = name
+        self.size = size
+        self.received = 0
+        self.fd = fd
+        self.path = path
+        self.max_size = max_size
+
+    def write(self, data):
+        if self.received + len(data) > self.max_size:
+            raise OSError(errno.EFBIG, f"upload exceeds max size {self.max_size}")
+        os.write(self.fd, data)
+        self.received += len(data)
+
+    def close(self, ok):
+        if self.fd is not None:
+            try:
+                if ok:
+                    os.fsync(self.fd)
+                os.close(self.fd)
+            finally:
+                self.fd = None
+                if not ok and self.path:
+                    try:
+                        os.unlink(self.path)
+                    except OSError:
+                        pass
+
+
+def handle_start(sock, transfers, xid, body, max_size):
+    if xid in transfers:
+        log.warning("xid %s: START twice; dropping prior", xid)
+        transfers.pop(xid).close(ok=False)
+
+    if len(body) < 8:
+        raise ValueError("START too short")
+    (size,) = struct.unpack_from(">Q", body, 0)
+    off = 8
+    name, off = read_string(body, off)
+    _mime, off = read_string(body, off)
+    dest, off = read_string(body, off)
+
+    if not name or _safe_name.search(name):
+        raise ValueError(f"invalid name {name!r}")
+
+    target_dir = expand_dest(dest)
+    os.makedirs(target_dir, exist_ok=True)
+
+    if size > max_size:
+        raise OSError(errno.EFBIG,
+                      f"declared size {size} exceeds max {max_size}")
+
+    fd, path = open_dedup(target_dir, name)
+    log.info("xid %s: START name=%s size=%s -> %s", xid, name, size, path)
+    transfers[xid] = Transfer(xid, name, size, fd, path, max_size)
+
+
+def handle_chunk(transfers, xid, body):
+    t = transfers.get(xid)
+    if t is None:
+        log.warning("xid %s: CHUNK before START", xid)
+        return
+    if len(body) < 8:
+        raise ValueError("CHUNK too short")
+    _seq, clen = struct.unpack_from(">II", body, 0)
+    if 8 + clen > len(body):
+        raise ValueError("CHUNK len overflow")
+    t.write(body[8:8 + clen])
+
+
+def handle_end(transfers, xid, body):
+    t = transfers.pop(xid, None)
+    if t is None:
+        log.warning("xid %s: END before START", xid)
+        return
+    if t.size and t.received != t.size:
+        log.warning("xid %s: END size mismatch (got %s of %s)",
+                    xid, t.received, t.size)
+        t.close(ok=False)
+        return
+    log.info("xid %s: END %s bytes -> %s", xid, t.received, t.path)
+    t.close(ok=True)
+
+
+def handle_cancel(transfers, xid):
+    t = transfers.pop(xid, None)
+    if t is None:
+        return
+    log.info("xid %s: CANCEL", xid)
+    t.close(ok=False)
+
+
+def register(sock, target):
+    """Send a hello so the Xvnc relay caches our address as the upload peer."""
+    try:
+        sock.sendto(b"\x00", target)
+        log.info("registered with relay at %s (sock bound to %r)",
+                 target, sock.getsockname())
+    except OSError as e:
+        log.warning("hello failed: %s", e)
+        return False
+    return True
+
+
+def run(sock, target, max_size):
+    transfers = {}
+    last_register = 0.0
+    while True:
+        # Re-register every 60s in case Xvnc was restarted.
+        now = time.time()
+        if now - last_register > 60:
+            if register(sock, target):
+                last_register = now
+
+        try:
+            sock.settimeout(30)
+            data, addr = sock.recvfrom(RECV_BUFLEN)
+            log.debug("recv %d bytes from %r", len(data), addr)
+        except socket.timeout:
+            continue
+        except OSError as e:
+            log.error("recvfrom: %s", e)
+            time.sleep(1)
+            continue
+
+        if len(data) < 5:
+            log.warning("short packet %d bytes", len(data))
+            continue
+        try:
+            mtype, xid = struct.unpack_from(">BI", data, 0)
+            body = data[5:]
+            if mtype == TYPE_START:
+                handle_start(sock, transfers, xid, body, max_size)
+            elif mtype == TYPE_CHUNK:
+                handle_chunk(transfers, xid, body)
+            elif mtype == TYPE_END:
+                handle_end(transfers, xid, body)
+            elif mtype == TYPE_CANCEL:
+                handle_cancel(transfers, xid)
+            elif mtype == TYPE_ERROR:
+                msg, _ = read_string(body, 0)
+                log.warning("xid %s: client error: %s", xid, msg)
+                t = transfers.pop(xid, None)
+                if t:
+                    t.close(ok=False)
+            else:
+                log.warning("xid %s: unknown type %s", xid, mtype)
+        except (OSError, ValueError) as e:
+            log.warning("xid %s: %s", locals().get("xid", "?"), e)
+            t = transfers.pop(locals().get("xid", -1), None)
+            if t:
+                t.close(ok=False)
+
+
+def main():
+    log_level = os.environ.get("KASMVNC_UPLOAD_LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
+    max_size = int(os.environ.get("KASMVNC_UPLOAD_MAX_SIZE", DEFAULT_MAX_FILE))
+    target = sock_path()
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, RECV_BUFLEN)
+    except OSError:
+        pass
+
+    # Bind to a known per-display path so Xvnc's relay-peer address is
+    # stable and doesn't depend on the kernel's auto-bind heuristics.
+    # Linux auto-binds dgram sockets in the abstract namespace on first
+    # sendto, but Xvnc has been observed to lose track of those across
+    # client connect/disconnect cycles. Named binding survives.
+    daemon_display = os.environ.get("DISPLAY", "").lstrip(":").split(".")[0]
+    daemon_bind = f"/tmp/kasmvnc-upload-daemon-{daemon_display}.sock"
+    try:
+        if os.path.exists(daemon_bind):
+            os.unlink(daemon_bind)
+        sock.bind(daemon_bind)
+        os.chmod(daemon_bind, 0o600)
+    except OSError as e:
+        log.warning("named bind %s failed (%s); falling back to auto-bind", daemon_bind, e)
+
+    # Wait for Xvnc to create the relay socket.
+    waited = 0
+    while not os.path.exists(target):
+        if waited == 0:
+            log.info("waiting for %s", target)
+        time.sleep(1)
+        waited += 1
+        if waited > 300:
+            log.error("relay socket %s never appeared", target)
+            return 5
+
+    log.info("upload daemon ready, target=%s, max_size=%d", target, max_size)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+    try:
+        run(sock, target, max_size)
+    finally:
+        sock.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)
