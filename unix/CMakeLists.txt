@@ -13,3 +13,7 @@ install(PROGRAMS openurl/xdg-open-shim DESTINATION ${BIN_DIR}
 install(FILES openurl/kasmvnc-open-url.desktop DESTINATION ${DATA_DIR}/applications)
 install(FILES openurl/kasmvnc-open-url.helper DESTINATION ${DATA_DIR}/xfce4/helpers
         RENAME kasmvnc-open-url.desktop)
+install(PROGRAMS download/kasmvnc-file-download DESTINATION ${BIN_DIR})
+install(FILES download/thunar-uca.example.xml DESTINATION ${DATA_DIR}/kasmvnc
+        RENAME thunar-uca.xml)
+install(PROGRAMS upload/kasmvnc-upload-daemon DESTINATION ${BIN_DIR})
