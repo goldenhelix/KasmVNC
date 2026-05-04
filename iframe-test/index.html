@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!--
+  Local iframe test harness for the goldenhelix kasmweb fork.
+
+  Loads kasmweb in an iframe pointed at a running ghdesktop-* container
+  and exercises the postMessage actions that VSWarehouse uses (plus the
+  ones the ApplicationHeaderMenu in
+  varseq/server/apps/frontend/src/components/navigation/ApplicationHeaderMenu.vue
+  triggers).
+
+  How to use:
+    1. Run the container in a separate terminal:
+         docker run --rm --shm-size=1gb -e VNC_PW=password -p 6904:6901 \
+           registry.goldenhelix.com/public/ghdesktop-varseq-trixie:latest
+
+    2. Run this test page locally:
+         cd KasmVNC/iframe-test && python3 serve.py
+       (serve.py adds basic-auth credentials to the iframe URL via JS so
+        you don't need to log in twice; see below.)
+
+    3. Open http://localhost:8124 in a browser. Accept the kasmvnc
+       self-signed cert by visiting https://localhost:6904/ once first
+       (the iframe will fail-silent until the cert is trusted).
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>KasmVNC iframe test</title>
+  <style>
+    body {
+      margin: 0;
+      font: 13px/1.4 system-ui, sans-serif;
+      background: #1a1a1a;
+      color: #eee;
+    }
+    header {
+      padding: 8px 12px;
+      background: #222;
+      border-bottom: 1px solid #333;
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    }
+    header .group {
+      display: flex; gap: 4px; align-items: center;
+      padding: 2px 6px;
+      border-right: 1px solid #333;
+    }
+    header .group:last-child { border-right: none; }
+    header label { color: #aaa; font-size: 11px; }
+    header input[type="number"], header input[type="text"] {
+      width: 70px; padding: 4px 6px;
+      background: #1a1a1a; color: #eee;
+      border: 1px solid #444; border-radius: 3px;
+      font: inherit;
+    }
+    header button {
+      padding: 4px 10px; border-radius: 3px; cursor: pointer;
+      border: 1px solid #444; background: #2a2a2a; color: #eee;
+      font: inherit;
+    }
+    header button:hover { background: #3a3a3a; }
+    header button.primary { background: #2563eb; border-color: #2563eb; color: white; }
+    header button.primary:hover { background: #1d4ed8; }
+    .vnc-container {
+      width: 100vw;
+      height: calc(100vh - 92px);
+    }
+    iframe {
+      width: 100%; height: 100%;
+      border: none; display: block; background: #000;
+    }
+    #log {
+      position: fixed; right: 8px; bottom: 8px;
+      width: 360px; max-height: 200px; overflow-y: auto;
+      background: rgba(0,0,0,0.85);
+      color: #9f9; padding: 6px 8px;
+      font: 11px/1.4 ui-monospace, monospace;
+      border: 1px solid #333; border-radius: 4px;
+      pointer-events: none;
+      z-index: 999;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="group">
+      <label>URL</label>
+      <input id="src" type="text" style="width: 320px"
+             value="https://localhost:6904/?password=password&autoconnect=true&resize=remote">
+      <button onclick="reload()">Load</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('show_panel')">show_panel</button>
+      <button onclick="send('hide_panel')">hide_panel</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('open_clipboard')">open_clipboard</button>
+      <button onclick="send('close_clipboard')">close_clipboard</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('open_displays_mode')">open_displays</button>
+      <button onclick="send('close_displays_mode')">close_displays</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('resize')">resize</button>
+      <label>w</label><input id="rx" type="number" value="1600">
+      <label>h</label><input id="ry" type="number" value="900">
+      <button onclick="send('set_resolution', { value_x: +rx.value, value_y: +ry.value })">set_resolution</button>
+    </div>
+
+    <div class="group">
+      <label>Q</label><input id="vq" type="number" value="6" min="0" max="9">
+      <button onclick="send('setvideoquality', { value: +vq.value })">setvideoquality</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('set_perf_stats', true)">stats on</button>
+      <button onclick="send('set_perf_stats', false)">stats off</button>
+    </div>
+
+    <div class="group">
+      <label>idle (min)</label><input id="idle" type="number" value="20">
+      <button onclick="send('set_idle_timeout', +idle.value)">set_idle_timeout</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('enable_threading', true)">threading on</button>
+      <button onclick="send('enable_threading', false)">threading off</button>
+    </div>
+
+    <div class="group">
+      <button onclick="send('control_displays', true)">control_displays</button>
+      <button onclick="send('terminate')" class="primary">terminate</button>
+    </div>
+  </header>
+
+  <div class="vnc-container">
+    <iframe
+      id="vnc"
+      src=""
+      allow="clipboard-read; clipboard-write; fullscreen"
+      allowfullscreen
+      sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads">
+    </iframe>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const iframe = document.getElementById('vnc');
+    const log = document.getElementById('log');
+
+    function reload() {
+      iframe.src = document.getElementById('src').value;
+      logLine('iframe src -> ' + iframe.src);
+    }
+
+    function send(action, value) {
+      const message = (value === undefined) ? { action } : { action, value };
+      try {
+        iframe.contentWindow.postMessage(message, '*');
+        logLine('-> ' + JSON.stringify(message));
+      } catch (e) {
+        logLine('!! ' + e);
+      }
+    }
+
+    function logLine(s) {
+      const ts = new Date().toLocaleTimeString();
+      log.textContent = ts + ' ' + s + '\n' + log.textContent;
+      log.textContent = log.textContent.split('\n').slice(0, 60).join('\n');
+    }
+
+    // Capture postMessages coming back FROM the iframe.
+    // Our fork emits events like { action: 'connection_state', value: ... },
+    // 'clipboardrx', 'fullscreen', 'idle_session_timeout', etc.
+    window.addEventListener('message', (e) => {
+      if (e.source !== iframe.contentWindow) return;
+      logLine('<- ' + JSON.stringify(e.data));
+    });
+
+    // Auto-load on first paint
+    reload();
+
+    // Expose for browser console use
+    window.__iframe = iframe;
+    window.__send = send;
+    console.log('Iframe test ready. Use __send("action", value) from the console.');
+  </script>
+</body>
+</html>
