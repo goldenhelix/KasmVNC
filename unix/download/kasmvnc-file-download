@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""Stream files/folders from inside a KasmVNC desktop session out to the
+web client, which triggers a native browser download.
+
+Wired up as a Thunar custom action so users right-click → "Download".
+Folders are zipped to a tempfile first, then streamed and unlinked.
+
+Wire format (datagrams to /tmp/kasmvnc-download-$DISPLAY.sock):
+
+  type:u8  xid:u32  body
+    0 START : u64 size  u16+name  u16+mime  u16+dest(unused)
+    1 CHUNK : u32 seq   u32 len   bytes
+    2 END   : u32 totalSeq
+    3 ERROR : u16+msg
+
+All multi-byte ints are big-endian.
+"""
+
+import mimetypes
+import os
+import random
+import socket
+import struct
+import sys
+import tempfile
+import zipfile
+
+CHUNK_SIZE = 64 * 1024
+
+TYPE_START = 0
+TYPE_CHUNK = 1
+TYPE_END = 2
+TYPE_ERROR = 3
+
+
+def sock_path():
+    display = os.environ.get("DISPLAY", "").lstrip(":").split(".")[0]
+    if not display:
+        raise SystemExit("kasmvnc-file-download: DISPLAY not set")
+    return f"/tmp/kasmvnc-download-{display}.sock"
+
+
+def pack_string(s):
+    b = s.encode("utf-8")
+    return struct.pack(">H", len(b)) + b
+
+
+def make_start(xid, name, mime, size):
+    return (struct.pack(">BIQ", TYPE_START, xid, size)
+            + pack_string(name)
+            + pack_string(mime)
+            + pack_string(""))
+
+
+def make_chunk(xid, seq, data):
+    return struct.pack(">BIII", TYPE_CHUNK, xid, seq, len(data)) + data
+
+
+def make_end(xid, total_seq):
+    return struct.pack(">BII", TYPE_END, xid, total_seq)
+
+
+def stream_file(sock, target, src_path, send_name, mime):
+    size = os.path.getsize(src_path)
+    xid = random.getrandbits(32)
+    sock.sendto(make_start(xid, send_name, mime, size), target)
+    seq = 0
+    with open(src_path, "rb") as f:
+        while True:
+            buf = f.read(CHUNK_SIZE)
+            if not buf:
+                break
+            sock.sendto(make_chunk(xid, seq, buf), target)
+            seq += 1
+    sock.sendto(make_end(xid, seq), target)
+
+
+def send_path(sock, target, path):
+    if not os.path.exists(path):
+        print(f"kasmvnc-file-download: not found: {path}", file=sys.stderr)
+        return 1
+
+    if os.path.isfile(path):
+        name = os.path.basename(path)
+        mime, _ = mimetypes.guess_type(name)
+        stream_file(sock, target, path, name, mime or "application/octet-stream")
+        return 0
+
+    if os.path.isdir(path):
+        base = os.path.basename(os.path.normpath(path)) or "folder"
+        fd, zip_path = tempfile.mkstemp(suffix=".zip", prefix=f"{base}-")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                parent = os.path.dirname(os.path.normpath(path)) or "."
+                for root, _dirs, files in os.walk(path):
+                    for fn in files:
+                        full = os.path.join(root, fn)
+                        try:
+                            zf.write(full, os.path.relpath(full, parent))
+                        except OSError as e:
+                            print(f"kasmvnc-file-download: skip {full}: {e}", file=sys.stderr)
+            stream_file(sock, target, zip_path, base + ".zip", "application/zip")
+        finally:
+            try:
+                os.unlink(zip_path)
+            except OSError:
+                pass
+        return 0
+
+    print(f"kasmvnc-file-download: unsupported path type: {path}", file=sys.stderr)
+    return 1
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: kasmvnc-file-download <path> [path ...]", file=sys.stderr)
+        return 2
+
+    target = sock_path()
+    if not os.path.exists(target):
+        print(f"kasmvnc-file-download: socket {target} not present; "
+              "is Xvnc running with -UnixRelay download:...?", file=sys.stderr)
+        return 5
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1 << 20)
+    except OSError:
+        pass
+
+    rc = 0
+    try:
+        for p in sys.argv[1:]:
+            try:
+                rc |= send_path(sock, target, p)
+            except OSError as e:
+                print(f"kasmvnc-file-download: error sending {p}: {e}", file=sys.stderr)
+                rc = 1
+    finally:
+        sock.close()
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

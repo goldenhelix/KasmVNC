@@ -1,0 +1,15 @@
+[Unit]
+Description=KasmVNC upload relay daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kasmvnc-upload-daemon
+Restart=on-failure
+RestartSec=2
+# Optional: cap maximum upload size (bytes). Default 4 GiB.
+# Environment=KASMVNC_UPLOAD_MAX_SIZE=4294967296
+
+[Install]
+WantedBy=graphical-session.target
