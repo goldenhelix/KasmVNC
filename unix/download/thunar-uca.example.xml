@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Example Thunar custom-action snippet for the KasmVNC download channel.
+
+  Merge into the user's ~/.config/Thunar/uca.xml inside the existing
+  <actions> root element. If the user has no uca.xml yet, drop the whole
+  <actions>...</actions> in place.
+-->
+<actions>
+    <action>
+        <icon>document-save</icon>
+        <name>Download</name>
+        <submenu></submenu>
+        <unique-id>kasmvnc-download-1</unique-id>
+        <command>/usr/bin/kasmvnc-file-download %F</command>
+        <description>Send to the user's web browser as a download</description>
+        <range></range>
+        <patterns>*</patterns>
+        <startup-notify/>
+        <directories/>
+        <audio-files/>
+        <image-files/>
+        <other-files/>
+        <text-files/>
+        <video-files/>
+    </action>
+</actions>
