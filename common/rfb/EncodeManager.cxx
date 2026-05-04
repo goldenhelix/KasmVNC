@@ -365,8 +365,18 @@ void EncodeManager::writeLosslessRefresh(const Region& req,  const ScreenSet &la
                                          const RenderedCursor* renderedCursor,
                                          size_t maxUpdateSize)
 {
-    if (videoDetected || video_mode_available)
+    if (videoDetected || video_mode_available) {
+        // In video mode there's no lossless refresh to send, but pending
+        // pseudo-encodings (cursor shape, LED state, etc.) must still be
+        // flushed — otherwise the cursor shape lags whenever the desktop
+        // is idle (e.g. user hovering a window edge to resize).
+        if (conn->writer()->needFakeUpdate()) {
+            int nRects = conn->cp.supportsLastRect ? 0xFFFF : 0;
+            conn->writer()->writeFramebufferUpdateStart(nRects);
+            conn->writer()->writeFramebufferUpdateEnd();
+        }
         return;
+    }
 
     doUpdate(false, getLosslessRefresh(req, maxUpdateSize),
              Region(), Point(), std::vector<CopyPassRect>(), layout, pb, renderedCursor);
@@ -476,7 +486,6 @@ void EncodeManager::doUpdate(bool allowLossy, const Region& changed_,
 
     updateQualities();
 
-    printf("TOTAL FRAME TOOK: %d\n", msSince(&start));
     conn->writer()->writeFramebufferUpdateEnd();
 }
 
