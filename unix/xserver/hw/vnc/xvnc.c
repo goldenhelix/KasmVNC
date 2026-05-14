@@ -95,7 +95,7 @@ from the X Consortium.
 #undef VENDOR_STRING
 #include "version-config.h"
 
-#define XVNCVERSION "KasmVNC 1.4.1~gh.20260430"
+#define XVNCVERSION "KasmVNC 1.4.1~gh.20260513"
 #define XVNCCOPYRIGHT ("Copyright (C) 1999-2018 KasmVNC Team and many others (see README.me)\n" \
                        "See http://kasmweb.com for information on KasmVNC.\n")
 

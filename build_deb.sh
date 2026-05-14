@@ -13,7 +13,7 @@
 
 set -e
 
-VERSION="1.4.1~gh.20260430-1"
+VERSION="1.4.1~gh.20260513-1"
 ARCH="amd64"
 DISTRO="${1:-debian}"
 CODENAME="${2:-bookworm}"

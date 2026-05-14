@@ -1,3 +1,15 @@
+kasmvnc (1.4.1~gh.20260513-1) unstable; urgency=medium
+
+  * Add `host` UnixRelay channel — desktop apps can send structured
+    messages (e.g. setTitle) up to the iframe-hosting page via
+    `kasmvnc-host '{"action":"...","value":...}'`.
+  * Raise `MAX_UNIX_RELAYS` from 4 to 8 (now using openurl, download,
+    upload, host with headroom).
+  * kasmweb: route downloads through parent.postMessage when embedded in
+    a sandboxed iframe (Firefox CSP frame-src blocked blob: URLs).
+
+ -- Golden Helix <support@goldenhelix.com>  Wed, 13 May 2026 00:00:00 +0000
+
 kasmvnc (1.4.1~gh.20260430-1) unstable; urgency=medium
 
   * Golden Helix integration build on top of upstream KasmVNC master (post-1.4.0).
