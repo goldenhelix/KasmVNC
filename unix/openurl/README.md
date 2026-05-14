@@ -119,9 +119,10 @@ launches Xvnc. The display number must match what `kasmvnc-open-url` sees
 in `$DISPLAY` — the wrapper does `lstrip(":").split(".")[0]`, so for
 `DISPLAY=:1` it expects the socket at `/tmp/kasmvnc-openurl-1.sock`.
 
-Note `MAX_UNIX_RELAYS = 4` in `common/rfb/unixRelayLimits.h`. With printer
-and smartcard already using two slots, `openurl` is the third. Bump the
-constant if you add more.
+Note `MAX_UNIX_RELAYS = 8` in `common/rfb/unixRelayLimits.h` (raised from
+upstream's 4). Our goldenhelix build uses four slots: openurl, download,
+upload, host. Printer and smartcard from upstream are commented out of
+the kasmweb registration block. Bump the constant if you add more.
 
 ### 4. (Optional) Tell kasmweb's parent frame how to handle the message
 

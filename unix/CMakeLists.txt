@@ -17,3 +17,4 @@ install(PROGRAMS download/kasmvnc-file-download DESTINATION ${BIN_DIR})
 install(FILES download/thunar-uca.example.xml DESTINATION ${DATA_DIR}/kasmvnc
         RENAME thunar-uca.xml)
 install(PROGRAMS upload/kasmvnc-upload-daemon DESTINATION ${BIN_DIR})
+install(PROGRAMS host/kasmvnc-host DESTINATION ${BIN_DIR})

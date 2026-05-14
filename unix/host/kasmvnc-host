@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+# Sends a structured message from inside an Xvnc/KasmVNC session up to the
+# iframe-hosting page. The payload is a single JSON object of the form
+#   {"action": "<name>", "value": <anything>}
+# It travels: this socket -> Xvnc -> websocket -> kasmweb's
+# core/output/host.js -> window.parent.postMessage({action:"host:<name>",
+# value:...}).
+#
+# Wire it up by adding to kasmvnc.yaml:
+#   network:
+#     unix_relay:
+#       - name: host
+#         path: /tmp/kasmvnc-host-${DISPLAY}.sock
+# (or pass -UnixRelay host:/tmp/kasmvnc-host-${DISPLAY}.sock to Xvnc).
+
+import json
+import os
+import socket
+import sys
+
+SOCK_TEMPLATE = "/tmp/kasmvnc-host-{display}.sock"
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: kasmvnc-host <json-message>", file=sys.stderr)
+        return 2
+
+    payload = sys.argv[1]
+    try:
+        msg = json.loads(payload)
+    except json.JSONDecodeError as e:
+        print(f"kasmvnc-host: invalid JSON: {e}", file=sys.stderr)
+        return 3
+    if not isinstance(msg, dict) or not isinstance(msg.get("action"), str):
+        print("kasmvnc-host: payload must be an object with a string 'action'",
+              file=sys.stderr)
+        return 4
+
+    display = os.environ.get("DISPLAY", "").lstrip(":").split(".")[0]
+    if not display:
+        print("kasmvnc-host: DISPLAY is not set", file=sys.stderr)
+        return 5
+
+    sock_path = SOCK_TEMPLATE.format(display=display)
+    if not os.path.exists(sock_path):
+        print(f"kasmvnc-host: socket {sock_path} not present; "
+              "is Xvnc running with -UnixRelay host:...?", file=sys.stderr)
+        return 6
+
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        s.sendto(payload.encode("utf-8"), sock_path)
+    finally:
+        s.close()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -97,9 +97,10 @@ cd ../appstream-images && ./build-trixie.sh && ./build-varseq-trixie.sh
 
 ## Things to watch on rebase
 
-- **`MAX_UNIX_RELAYS = 4`** in `common/rfb/unixRelayLimits.h`. We use
-  three slots (openurl, download, upload). If upstream adds another
-  default relay (audio?), bump to 5.
+- **`MAX_UNIX_RELAYS = 8`** in `common/rfb/unixRelayLimits.h` (bumped
+  from upstream's 4). We currently use four slots (openurl, download,
+  upload, host). Headroom for future channels; if upstream adds a
+  default relay (audio?) we still fit.
 - **VAAPI compile-time deps** (`libavcodec`, `libavformat`,
   `libswscale`, `libva`, `libdrm`) need to remain on the deb's
   `Build-Depends`. Already in `builder/dockerfile.debian_trixie.build`.
