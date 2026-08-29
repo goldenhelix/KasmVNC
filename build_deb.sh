@@ -8,12 +8,18 @@
 #   ./build_deb.sh debian bookworm
 #   ./build_deb.sh ubuntu noble   # -> workspaces-core-images
 #
-# Version is set by editing debian/changelog and unix/xserver/hw/vnc/xvnc.c
-# directly (see top entry of debian/changelog for the current version).
+# Version comes from the top entry of debian/changelog. Keep the XVNCVERSION
+# stamp in unix/xserver/hw/vnc/xvnc.c in sync with it by hand.
 
 set -e
 
-VERSION="1.4.1~gh.20260513-1"
+# Derive the version from debian/changelog rather than hard-coding it — a stale
+# literal here silently breaks the build at the staging step after every rebase.
+VERSION="$(sed -n '1s/.*(\(.*\)).*/\1/p' "$(dirname "$0")/debian/changelog")"
+if [ -z "$VERSION" ]; then
+    echo "Could not parse version from debian/changelog" >&2
+    exit 1
+fi
 ARCH="amd64"
 DISTRO="${1:-debian}"
 CODENAME="${2:-bookworm}"
