@@ -70,30 +70,28 @@ docker run --rm -v "$PWD/builder/www:/build" \
   --user "$(id -u)":"$(id -g)" \
   kasmweb/www:latest
 
-# 2. Package the source tarball.
+# 2. Build the source tarball AND the .deb.
 #
-# build-package's last step is `chown $L_UID:$L_GID /tmp/kasmvnc.*.tar.gz`,
-# which fails under rootless docker (the file ends up owned by some
-# subuid that the host user can't chown). The build itself is done at
-# that point, so we tolerate that specific failure and re-stage the
-# tarball with cp (which doesn't require ownership match).
-./builder/build-package "$DISTRO" "$CODENAME" || true
+# builder/build-package runs builder/build-tarball then builder/build-deb.
+# build-tarball also calls builder/build-www itself, but that wrapper does its
+# mkdir through `sudo -u`; step 1 above having already populated builder/www
+# means build-www short-circuits ("source did not change") and never reaches
+# the sudo call. Keep step 1 ahead of this for that reason.
+#
+# Both stages now run their containers with --user, so the outputs land owned
+# by us — the old chown-tolerance dance is no longer needed.
+./builder/build-package "$DISTRO" "$CODENAME"
 
-TARBALL="/tmp/kasmvnc.${DISTRO}_${CODENAME}.tar.gz"
-if [ ! -f "$TARBALL" ]; then
-    echo "Source tarball missing: $TARBALL — build-package failed earlier than expected." >&2
-    exit 1
-fi
-cp "$TARBALL" "builder/build/kasmvnc.${DISTRO}_${CODENAME}.tar.gz"
-
-# 3. Build the .deb
-./builder/build-deb "$DISTRO" "$CODENAME"
-
-# 4. Stage the deb
-DEB="builder/build/${CODENAME}/kasmvncserver_${VERSION}_${ARCH}.deb"
+# 3. Stage the deb.
+#
+# Output layout (upstream changed this): the tarball lands in
+# builder/build/kasmvnc.<os>_<codename>.tar.gz and the debs in
+# builder/build/<os>_<codename>/ — not /tmp and not builder/build/<codename>/.
+BUILD_OUT="builder/build/${DISTRO}_${CODENAME}"
+DEB="${BUILD_OUT}/kasmvncserver_${VERSION}_${ARCH}.deb"
 if [ ! -f "$DEB" ]; then
   echo "Expected deb not found at $DEB" >&2
-  ls -la "builder/build/${CODENAME}/" >&2
+  ls -la "$BUILD_OUT/" >&2
   exit 1
 fi
 
