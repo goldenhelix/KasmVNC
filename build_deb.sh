@@ -54,6 +54,14 @@ cd "$(dirname "$0")"
 # requires OUTPUT_OWNER_UID (it adds a matching in-container user and drops
 # to it before `npm install`), so the build arg is mandatory — without it
 # the image build fails with "useradd: invalid user ID ''".
+#
+# builder/www is wiped first: build-www-inside-docker plain `cp`s into it and
+# fails on pre-existing files. Older builds ran the container as root, so the
+# leftovers can be root-owned — clear them from a container rather than
+# requiring sudo on the host.
+if [ -d "$PWD/builder/www" ]; then
+    docker run --rm -v "$PWD/builder:/b" alpine:latest rm -rf /b/www
+fi
 mkdir -p "$PWD/builder/www"
 docker build -t kasmweb/www \
   --build-arg OUTPUT_OWNER_UID="$(id -u)" \
