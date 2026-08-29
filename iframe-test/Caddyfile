@@ -25,6 +25,17 @@
 		}
 	}
 
+	# Second desktop, for testing a derived app image (e.g. ghdesktop-varseq)
+	# alongside the core one. Point the harness URL field at /varseq/ .
+	handle_path /varseq/* {
+		reverse_proxy https://127.0.0.1:6902 {
+			transport http {
+				tls
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
 	handle {
 		root * .
 		file_server
