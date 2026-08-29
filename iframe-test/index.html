@@ -10,7 +10,7 @@
 
   How to use:
     1. Run the container in a separate terminal:
-         docker run --rm --shm-size=1gb -e VNC_PW=password -p 6904:6901 \
+         docker run --rm --shm-size=1gb -e VNC_PW=password -p 6901:6901 \
            registry.goldenhelix.com/public/ghdesktop-varseq-trixie:latest
 
     2. Run this test page locally:
@@ -19,7 +19,7 @@
         you don't need to log in twice; see below.)
 
     3. Open http://localhost:8124 in a browser. Accept the kasmvnc
-       self-signed cert by visiting https://localhost:6904/ once first
+       self-signed cert by visiting https://localhost:6901/ once first
        (the iframe will fail-silent until the cert is trusted).
 -->
 <html>
@@ -119,7 +119,24 @@
     <div class="group">
       <label>URL</label>
       <input id="src" type="text" style="width: 320px"
-             value="https://localhost:6904/?password=password&autoconnect=true&resize=remote">
+             value="/vnc/?password=password&autoconnect=true&resize=remote">
+      <!-- Default is the SAME-ORIGIN proxy path served by ./Caddyfile
+           (caddy run --config Caddyfile -> http://<host>:8125/). That avoids
+           the two silent iframe killers: a self-signed cert can't be accepted
+           inside a frame (no interstitial for subresources), and a cross-origin
+           frame can't prompt for BasicAuth.
+
+           serve.py (port 8124) has no proxy, so under it fall back to hitting
+           the container's https origin directly -- which requires visiting that
+           origin top-level once to accept the cert. -->
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const el = document.getElementById('src');
+          if (location.port === '8124') {
+            el.value = 'https://' + location.hostname + ':6901' + el.value.replace(/^\/vnc\//, '/');
+          }
+        });
+      </script>
       <button onclick="reload()">Load</button>
     </div>
 

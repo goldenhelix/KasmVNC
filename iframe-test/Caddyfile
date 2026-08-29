@@ -1,0 +1,32 @@
+# Single-origin harness: serves this directory AND proxies the kasmvnc
+# container underneath it, so the iframe is same-origin plain HTTP.
+#
+# Why: a self-signed cert cannot be accepted inside an iframe (browsers only
+# show the interstitial for a top-level navigation), and a cross-origin iframe
+# cannot prompt for BasicAuth either. Both failures are silent. Proxying makes
+# the frame same-origin http:// and sidesteps both.
+#
+# It is also the more faithful test: VSWarehouse serves kasmweb from a subpath
+# behind a reverse proxy, which is exactly what the relative-WebSocket-URL
+# patch (kasmweb GOLDENHELIX.md #1) exists for.
+#
+#   caddy run --config Caddyfile
+#   → http://<host>:8125/
+#
+# Expects the container on https://127.0.0.1:6901 (self-signed).
+
+:8125 {
+	handle_path /vnc/* {
+		reverse_proxy https://127.0.0.1:6901 {
+			transport http {
+				tls
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+	handle {
+		root * .
+		file_server
+	}
+}
