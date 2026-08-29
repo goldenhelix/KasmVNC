@@ -48,8 +48,19 @@ esac
 cd "$(dirname "$0")"
 
 # 1. Build the kasmweb (noVNC) bundle into builder/www/
-docker build -t kasmweb/www -f builder/dockerfile.www.build .
-docker run --rm -v "$PWD/builder/www:/build" kasmweb/www:latest
+#
+# This mirrors upstream's builder/build-www, which we don't call directly
+# because it wraps mkdir in `sudo -u`. Upstream's dockerfile.www.build now
+# requires OUTPUT_OWNER_UID (it adds a matching in-container user and drops
+# to it before `npm install`), so the build arg is mandatory — without it
+# the image build fails with "useradd: invalid user ID ''".
+mkdir -p "$PWD/builder/www"
+docker build -t kasmweb/www \
+  --build-arg OUTPUT_OWNER_UID="$(id -u)" \
+  -f builder/dockerfile.www.build .
+docker run --rm -v "$PWD/builder/www:/build" \
+  --user "$(id -u)":"$(id -g)" \
+  kasmweb/www:latest
 
 # 2. Package the source tarball.
 #
