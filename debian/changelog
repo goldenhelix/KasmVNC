@@ -1,3 +1,14 @@
+kasmvnc (1.5.1~gh.20260830-1) unstable; urgency=medium
+
+  * kasmweb: import _ into ui_screen.js. A secondary display window died
+    with "ReferenceError: _ is not defined" when the primary reconnected,
+    because updateVisualState()'s reconnecting branch calls _() and
+    ui_screen.js never imported it.
+  * kasmweb: don't let a dismissed error overlay turn a later error into a
+    document.write() over the live session.
+
+ -- Golden Helix <support@goldenhelix.com>  Sun, 30 Aug 2026 00:00:00 +0000
+
 kasmvnc (1.5.1~gh.20260828-1) unstable; urgency=medium
 
   * Golden Helix integration build rebased onto upstream KasmVNC master
