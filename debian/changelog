@@ -1,3 +1,13 @@
+kasmvnc (1.5.1~gh.20260831-1) unstable; urgency=medium
+
+  * kasmweb: guard #noVNC_transition_text in the secondary display window.
+    screen.html has no such element, so the connecting/disconnecting/
+    reconnecting states of updateVisualState() threw
+    "Cannot set properties of null (setting 'textContent')". The window
+    now reports the wait through showStatus instead.
+
+ -- Golden Helix <support@goldenhelix.com>  Mon, 31 Aug 2026 00:00:00 +0000
+
 kasmvnc (1.5.1~gh.20260830-1) unstable; urgency=medium
 
   * kasmweb: import _ into ui_screen.js. A secondary display window died
