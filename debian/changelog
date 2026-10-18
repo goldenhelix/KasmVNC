@@ -1,3 +1,13 @@
+kasmvnc (1.5.1~gh.20261017-1) unstable; urgency=medium
+
+  * kasmweb: tolerate the system clipboard changing mid-read in
+    clipboardPasteDataFrom. ClipboardItem.getType() rejected with
+    "InvalidStateError: Clipboard data has changed" as an uncaught promise
+    error; the stale snapshot is now dropped and re-read on the next
+    user-driven event.
+
+ -- Golden Helix <support@goldenhelix.com>  Sat, 17 Oct 2026 00:00:00 +0000
+
 kasmvnc (1.5.1~gh.20260831-1) unstable; urgency=medium
 
   * kasmweb: guard #noVNC_transition_text in the secondary display window.
